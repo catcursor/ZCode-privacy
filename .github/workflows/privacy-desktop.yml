@@ -57,7 +57,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Build backend
-        run: pnpm -r --filter "./packages/*" --filter "!@zcode/desktop" build
+        # 桌面打包仅需要这些运行库；完整仓库 build 会额外构建已禁用的云分享网站。
+        run: |
+          pnpm --filter @zcode/e2e-report build:node
+          pnpm --filter @zcode/model-option-map --filter @zcode/provider --filter @zcode/provider-node --filter @zcode/rpc build
+          pnpm --filter @zcode/stream-animate exec tsc -p tsconfig.server.json
       - name: Build desktop and bundled Agent
         run: pnpm --filter @zcode/desktop build 2>&1 | tee privacy-desktop-build.log
       - name: Package desktop
