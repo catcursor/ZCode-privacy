@@ -1,0 +1,101 @@
+name: Build privacy desktop packages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    name: ${{ matrix.platform }}-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: macos, os: mac, arch: arm64, runner: macos-15 }
+          - { platform: macos, os: mac, arch: x64, runner: macos-15-intel }
+          - { platform: windows, os: win, arch: x64, runner: windows-2022 }
+          - { platform: windows, os: win, arch: arm64, runner: windows-11-arm }
+          - { platform: linux, os: linux, arch: x64, runner: ubuntu-24.04 }
+          - { platform: linux, os: linux, arch: arm64, runner: ubuntu-24.04-arm }
+    defaults:
+      run:
+        shell: bash
+    env:
+      HUSKY: "0"
+      CI: "true"
+      NODE_OPTIONS: --max-old-space-size=4096
+      ZCODE_ENV: production
+      ZCODE_SKIP_REMOTE_ASSETS: "1"
+      ZCODE_TARGET_OS: ${{ matrix.os }}
+      ZCODE_TARGET_ARCH: ${{ matrix.arch }}
+      ZCODE_ARMS_RUM_ENDPOINT: ""
+      ZCODE_TELEMETRY_REPORT_ENDPOINT: ""
+      ZCODE_AUTO_UPDATE: "0"
+      ZCODE_ENABLE_MAC_SIGN: "0"
+      ZCODE_ENABLE_WINDOWS_SIGN: "0"
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/
+      ELECTRON_BUILDER_BINARIES_MIRROR: https://github.com/electron-userland/electron-builder-binaries/releases/download/
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with:
+          version: 10.33.2
+          run_install: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24.14.0
+          cache: pnpm
+      - name: Linux packaging tools
+        if: matrix.platform == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y rpm zstd libarchive-tools
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build backend
+        run: pnpm -r --filter "./packages/*" --filter "!@zcode/desktop" build
+      - name: Build desktop and bundled Agent
+        run: pnpm --filter @zcode/desktop build 2>&1 | tee privacy-desktop-build.log
+      - name: Package desktop
+        run: pnpm bundle:desktop -- --os "$ZCODE_TARGET_OS" --arch "$ZCODE_TARGET_ARCH" --skip-prepare --skip-build 2>&1 | tee privacy-desktop-package.log
+      - name: Collect installers and checksums
+        env:
+          BUILD_PLATFORM: ${{ matrix.platform }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readdir, readFile, mkdir, copyFile, writeFile } from 'node:fs/promises';
+          import { createHash } from 'node:crypto';
+          const source = 'packages/desktop/dist';
+          const output = 'dist/privacy';
+          await mkdir(output, { recursive: true });
+          const files = (await readdir(source)).filter(name => /\.(dmg|zip|exe|AppImage|deb|rpm|pkg\.tar\.zst)$/.test(name)).sort();
+          if (!files.length) throw new Error('No desktop packages were produced');
+          const sums = [];
+          for (const name of files) {
+            await copyFile(`${source}/${name}`, `${output}/${name}`);
+            sums.push(`${createHash('sha256').update(await readFile(`${output}/${name}`)).digest('hex')}  ${name}`);
+          }
+          await writeFile(`${output}/SHA256SUMS.txt`, `${sums.join('\n')}\n`);
+          await writeFile(`${output}/BUILD.json`, JSON.stringify({ commit: process.env.GITHUB_SHA, platform: process.env.BUILD_PLATFORM, architecture: process.env.ZCODE_TARGET_ARCH, run: `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`, unsigned: true, reporting: false, autoUpdate: false }, null, 2));
+          await copyFile('PRIVACY.md', `${output}/PRIVACY.md`);
+          NODE
+      - name: Upload packages
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ZCode-privacy-${{ matrix.platform }}-${{ matrix.arch }}
+          path: dist/privacy/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+      - name: Upload build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: build-logs-${{ matrix.platform }}-${{ matrix.arch }}
+          path: privacy-desktop-*.log
+          if-no-files-found: ignore
+          retention-days: 7
