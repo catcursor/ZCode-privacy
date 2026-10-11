@@ -7,6 +7,7 @@ This fork removes product reporting and optional publication while preserving th
 - Automatic application updates, manual/forced updater network entry points and startup force-update checks and background vendor model-registry refreshes are disabled. Existing settings cannot re-enable them. Installing a new version is an explicit action outside the application.
 - Conversation cloud publication and support-feedback uploads are disabled before token access, file reads or network transmission. Model attachments, file transfer to a selected workspace and user-requested tool networking remain normal functionality.
 - Local diagnostic logs and local session storage remain functional. No automatic upload of those files is available through the removed features.
+- Desktop packaging must not inject or require removed reporting SDKs or OTLP exporters.
 
 Owners: reporting adapters own inert compatibility interfaces; updater owns its disabled state; publication adapters reject optional upload capabilities with a stable error. No global network interception, tool-admission changes or mirrored configuration.
 
