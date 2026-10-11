@@ -2,6 +2,9 @@
 *.mjs text eol=lf
 *.sh  text eol=lf
 
+# 修复原因：Gen UI 离线资源有固定 SHA-256；Windows 检出时转换换行会破坏快照。
+apps/zcode-cli/packages/visualize-plugin/skills/visualize/assets/vendor/** -text
+
 # E2E PDF fixture 含规范 xref 尾空格，必须按二进制处理，避免 diff --check 误报。
 packages/desktop/test/e2e/fixtures/fs/**/*.pdf binary
 

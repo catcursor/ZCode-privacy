@@ -2,25 +2,50 @@ name: Build privacy desktop packages
 
 on:
   workflow_dispatch:
+    inputs:
+      platform:
+        description: Platforms to build
+        type: choice
+        default: all
+        options: [all, macos, windows, linux]
 
 permissions:
   contents: read
 
 jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - id: matrix
+        env:
+          BUILD_PLATFORM: ${{ inputs.platform }}
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+          const targets = [
+            { platform: 'macos', os: 'mac', arch: 'arm64', runner: 'macos-15' },
+            { platform: 'macos', os: 'mac', arch: 'x64', runner: 'macos-15-intel' },
+            { platform: 'windows', os: 'win', arch: 'x64', runner: 'windows-2022' },
+            { platform: 'windows', os: 'win', arch: 'arm64', runner: 'windows-11-arm' },
+            { platform: 'linux', os: 'linux', arch: 'x64', runner: 'ubuntu-24.04' },
+            { platform: 'linux', os: 'linux', arch: 'arm64', runner: 'ubuntu-24.04-arm' },
+          ];
+          const platform = process.env.BUILD_PLATFORM || 'all';
+          const include = targets.filter(target => platform === 'all' || target.platform === platform);
+          if (!include.length) throw new Error(`Unknown platform: ${platform}`);
+          appendFileSync(process.env.GITHUB_OUTPUT, `matrix=${JSON.stringify({ include })}\n`);
+          NODE
   desktop:
+    needs: plan
     name: ${{ matrix.platform }}-${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - { platform: macos, os: mac, arch: arm64, runner: macos-15 }
-          - { platform: macos, os: mac, arch: x64, runner: macos-15-intel }
-          - { platform: windows, os: win, arch: x64, runner: windows-2022 }
-          - { platform: windows, os: win, arch: arm64, runner: windows-11-arm }
-          - { platform: linux, os: linux, arch: x64, runner: ubuntu-24.04 }
-          - { platform: linux, os: linux, arch: arm64, runner: ubuntu-24.04-arm }
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     defaults:
       run:
         shell: bash

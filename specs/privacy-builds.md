@@ -2,6 +2,8 @@
 
 GitHub Actions owns manually requested builds of the privacy branch. Its matrix matches all six targets in the upstream CI platform specification: macOS, Windows and Linux, each x64 and arm64. Each job uses a native runner, the committed lockfile and existing desktop preparation/build/packaging scripts. No vendor credentials, notifications or reporting services are required.
 
+The dispatch selector defaults to all platforms; macOS, Windows or Linux may be selected independently for retries. Content-addressed Gen UI vendor snapshots must be checked out byte-for-byte on every OS; their hash validation remains enabled.
+
 Order: checkout requested commit → install pinned tools/dependencies → build backend → prepare and build desktop/Agent → package and verify runtime closure → collect installers and SHA-256 manifest → upload Actions artifact. Each architecture owns its isolated workspace and artifact; one failed job does not cancel the other targets. Jobs have read-only repository permission; uploads use the Actions artifact service. No automatic release publication or application update feed is created.
 
 Packages retain the fork's disabled reporting/update behavior. The workflow explicitly disables optional reporting build flags and signing discovery. macOS and Windows packages are unsigned. Open-source upstream Computer Use placeholders remain placeholders; normal custom model and terminal features stay enabled. Build dependencies are downloaded during CI, without bundling private configuration or personal model credentials.
