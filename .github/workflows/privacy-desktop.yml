@@ -8,6 +8,10 @@ on:
         type: choice
         default: all
         options: [all, macos, windows, linux]
+      release_tag:
+        description: Optional new release tag (requires all platforms), e.g. v3.15.1-privacy.2
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -21,6 +25,7 @@ jobs:
       - id: matrix
         env:
           BUILD_PLATFORM: ${{ inputs.platform }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         shell: bash
         run: |
           node --input-type=module <<'NODE'
@@ -34,6 +39,10 @@ jobs:
             { platform: 'linux', os: 'linux', arch: 'arm64', runner: 'ubuntu-24.04-arm' },
           ];
           const platform = process.env.BUILD_PLATFORM || 'all';
+          const tag = process.env.RELEASE_TAG;
+          if (tag && (platform !== 'all' || !/^v\d+\.\d+\.\d+-privacy\.\d+$/.test(tag))) {
+            throw new Error('Release requires all platforms and a tag like v3.15.1-privacy.2');
+          }
           const include = targets.filter(target => platform === 'all' || target.platform === platform);
           if (!include.length) throw new Error(`Unknown platform: ${platform}`);
           appendFileSync(process.env.GITHUB_OUTPUT, `matrix=${JSON.stringify({ include })}\n`);
@@ -128,3 +137,38 @@ jobs:
           path: privacy-desktop-*.log
           if-no-files-found: ignore
           retention-days: 7
+
+  release:
+    if: inputs.release_tag != ''
+    needs: desktop
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    concurrency:
+      group: privacy-release-${{ inputs.release_tag }}
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24.14.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: ZCode-privacy-*
+          path: dist/release-input
+      - name: Verify and assemble all six targets
+        run: node scripts/assemble-privacy-release.mjs dist/release-input dist/release "$GITHUB_SHA"
+      - name: Publish verified installers to Releases
+        shell: bash
+        run: |
+          # 修复原因：临时 Actions 下载不等于正式交付；先上传草稿，再公开完整资产。
+          gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --title "ZCode Privacy $RELEASE_TAG" --notes-file dist/release/RELEASE-NOTES.md
+          for asset in dist/release/*; do
+            if [[ "$(basename "$asset")" != RELEASE-NOTES.md ]]; then
+              gh release upload "$RELEASE_TAG" "$asset" --repo "$GITHUB_REPOSITORY"
+            fi
+          done
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest

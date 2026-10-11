@@ -26,7 +26,7 @@
 
 沿用上游 README 的开发与构建流程，使用 Node 24 和 pnpm 10.33.2。无需设置额外的模型地址白名单或凭据密钥。正常填写自定义模型 API 地址和 API Key 即可。需要升级时，手动审阅并合入上游源码后重新构建。
 
-上游安装包、已经存在的旧桌面程序、未重新构建的远程 Agent 不包含这些修改。本分支已通过 GitHub Actions 生成六个平台的桌面安装包，下载与验证记录见 [安装包说明](docs/privacy-packages.md)。
+上游安装包、已经存在的旧桌面程序、未重新构建的远程 Agent 不包含这些修改。本分支已通过 GitHub Actions 生成六个平台的桌面安装包，并发布到 [Releases](https://github.com/catcursor/ZCode-privacy/releases/tag/v3.15.1-privacy.1) 供直接下载；校验值与构建记录见 [安装包说明](docs/privacy-packages.md)。
 
 ## 验证记录
 
