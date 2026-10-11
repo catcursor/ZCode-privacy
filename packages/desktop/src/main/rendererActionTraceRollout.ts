@@ -5,7 +5,6 @@ import {
   type RendererActionTraceConfigV1,
 } from "@zcode/shared";
 import {
-  createSingleFeatureRollout,
   type SingleFeatureRollout,
   type SingleFeatureRolloutLogger,
 } from "./singleFeatureRollout.js";
@@ -59,19 +58,15 @@ export function resolveRendererActionTraceConfig(
   return parsed.success ? parsed.data : null;
 }
 
-export function createRendererActionTraceRollout(options: {
+export function createRendererActionTraceRollout(_options: {
   fetchConfig: (signal: AbortSignal) => Promise<unknown>;
   logger: SingleFeatureRolloutLogger;
   timeoutMs?: number;
   cacheTtlMs?: number;
 }): RendererActionTraceRollout {
-  return createSingleFeatureRollout<RendererActionTraceConfigV1>({
-    resolveConfig: resolveRendererActionTraceConfig,
-    defaultValue: { ...DISABLED_RENDERER_ACTION_TRACE_CONFIG },
-    logTag: "renderer-action-trace",
-    fetchConfig: options.fetchConfig,
-    logger: options.logger,
-    timeoutMs: options.timeoutMs,
-    cacheTtlMs: options.cacheTtlMs,
-  });
+  return {
+    getSnapshot: () => ({ ...DISABLED_RENDERER_ACTION_TRACE_CONFIG }),
+    refresh: async () => ({ ...DISABLED_RENDERER_ACTION_TRACE_CONFIG }),
+    awaitFirstDecision: async () => ({ ...DISABLED_RENDERER_ACTION_TRACE_CONFIG }),
+  };
 }

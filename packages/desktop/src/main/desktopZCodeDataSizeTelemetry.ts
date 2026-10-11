@@ -1,13 +1,7 @@
-import armsRum from "@arms/rum-electron";
 import type { ArmsRumEnv, FinalArmsCustomEventPayload } from "@zcode/shared";
 
 import type { ZCodeDataSizeScanResult } from "./zcodeDataSizeScanner.js";
-import {
-  readZCodeDataSizeTelemetryState,
-  writeZCodeDataSizeTelemetryState,
-  type ZCodeDataSizeTelemetryState,
-} from "./zcodeDataSizeTelemetryState.js";
-import { scanZCodeDataDirectoryInWorker } from "./zcodeDataSizeWorkerClient.js";
+import { type ZCodeDataSizeTelemetryState } from "./zcodeDataSizeTelemetryState.js";
 
 export type { ZCodeDataSizeTelemetryState } from "./zcodeDataSizeTelemetryState.js";
 
@@ -392,7 +386,7 @@ export function createZCodeDataSizeTelemetryScheduler(
 
 let desktopScheduler: ReturnType<typeof createZCodeDataSizeTelemetryScheduler> | null = null;
 
-export function registerDesktopZCodeDataSizeTelemetry(options: {
+export function registerDesktopZCodeDataSizeTelemetry(_options: {
   context: Parameters<typeof buildZCodeDataSizeArmsPayload>[0]["context"];
   getSystemIdleTimeSeconds: () => number;
   isAppBackground: () => boolean;
@@ -401,38 +395,7 @@ export function registerDesktopZCodeDataSizeTelemetry(options: {
   rootPath: string;
   stateFile: string;
 }): void {
-  stopDesktopZCodeDataSizeTelemetry();
-  desktopScheduler = createZCodeDataSizeTelemetryScheduler({
-    deviceMid: options.context.deviceMid,
-    getSystemIdleTimeSeconds: options.getSystemIdleTimeSeconds,
-    isAppBackground: options.isAppBackground,
-    isZCodeBusy: options.isZCodeBusy,
-    logger: options.logger,
-    readState: () => readZCodeDataSizeTelemetryState(options.stateFile),
-    report: (result) => {
-      const payload = buildZCodeDataSizeArmsPayload({ context: options.context, result });
-      armsRum.sendCustom({
-        group: payload.group,
-        name: payload.name,
-        properties: payload.properties,
-        type: payload.type,
-        value: payload.value,
-      });
-    },
-    scan: ({ signal }) =>
-      scanZCodeDataDirectoryInWorker(
-        {
-          maxDurationMs: ZCODE_DATA_SIZE_SCAN_MAX_DURATION_MS,
-          maxFiles: ZCODE_DATA_SIZE_SCAN_MAX_FILES,
-          rootPath: options.rootPath,
-        },
-        signal,
-      ),
-    writeState: (state) => writeZCodeDataSizeTelemetryState(options.stateFile, state),
-  });
-  void desktopScheduler.start().catch((error) => {
-    options.logger.warn("[zcode-data-size] scheduler start failed", error);
-  });
+  // 隐私版不采集、不启动上报定时器。
 }
 
 export function stopDesktopZCodeDataSizeTelemetry(): void {

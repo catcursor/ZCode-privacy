@@ -1,3 +1,5 @@
+> **Privacy fork**: custom models and terminal capabilities are preserved; optional uploads, reporting and automatic updates are removed. See [PRIVACY.md](PRIVACY.md) for scope and validation limits.
+
 # ZCode
 
 <div align="center">

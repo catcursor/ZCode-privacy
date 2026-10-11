@@ -1,5 +1,4 @@
 import {
-  sanitizeTelemetryModelValue,
   type ArmsCustomEventPayload,
   type IPlatformService,
   type LaunchMarks,
@@ -32,14 +31,9 @@ export const STREAM_STALL_REPORT_THRESHOLD_MS = 3000;
 
 type ArmsReporter = Pick<IPlatformService, "reportArmsCustomEvent">;
 
-let armsReporter: ArmsReporter | null = null;
-
-export function setUiPerfArmsReporter(reporter: ArmsReporter | null): void {
-  armsReporter = reporter;
-}
+export function setUiPerfArmsReporter(_reporter: ArmsReporter | null): void {}
 
 export function clearUiPerfArmsReporterForTest(): void {
-  armsReporter = null;
   lastChunkAtByTask.clear();
 }
 
@@ -48,32 +42,9 @@ export function clearUiPerfArmsReporterForTest(): void {
  * 在唯一出口统一归一，避免每个 report 函数各自处理后漏掉新增事件；归一只影响上报值，
  * 不改变调用方拿到的模型选择和本地日志。
  */
-function sanitizeModelProperty(
-  properties: ArmsCustomEventPayload["properties"],
-): ArmsCustomEventPayload["properties"] {
-  if (!properties || typeof properties.model !== "string") {
-    return properties;
-  }
-  const model = sanitizeTelemetryModelValue(properties.model);
-  return { ...properties, model: model || undefined };
-}
-
 // 原因:ARMS 属观测链路,UI 主流程(启动/发送/渲染)不得因埋点失败而中断。
-function emit(payload: ArmsCustomEventPayload): void {
-  if (!armsReporter) {
-    return;
-  }
-  const sanitized: ArmsCustomEventPayload = {
-    ...payload,
-    properties: sanitizeModelProperty(payload.properties),
-  };
-  try {
-    void Promise.resolve(armsReporter.reportArmsCustomEvent(sanitized)).catch((error) => {
-      logger.warn("[ui-perf] ARMS 上报失败", { name: payload.name, error });
-    });
-  } catch (error) {
-    logger.warn("[ui-perf] ARMS 上报异常", { name: payload.name, error });
-  }
+function emit(_payload: ArmsCustomEventPayload): void {
+  // 隐私版保留本地性能辅助逻辑，不发送 ARMS payload。
 }
 
 interface LaunchToInputTimings {

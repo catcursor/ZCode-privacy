@@ -1,4 +1,4 @@
-import armsRum from "@arms/rum-electron";
+import armsRum from "@zcode/shared/privacy/telemetry";
 import {
   ZCODE_VERSION,
   type DatabaseStartupState,

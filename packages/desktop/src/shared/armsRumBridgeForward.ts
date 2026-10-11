@@ -3,8 +3,6 @@ import type { IpcRenderer } from "electron";
 /** 与 @arms/rum-electron 内置 preload 一致 */
 export const ARMS_RUM_BRIDGE_CHANNEL = "arms:rum-bridge";
 
-type PatchedIpcRenderer = IpcRenderer & { __zcodeArmsIpcPatched?: boolean };
-
 /**
  * SDK browser-reporter 发送 JSON.stringify(events[])，主进程 IPC 拒绝 Array。
  * 在 preload 顶层拦截 ipcRenderer.send，不依赖 ArmsEventBridge 创建时机（autoInject 可能晚于 scheduleArmsBridgePatch）。
@@ -37,16 +35,7 @@ type ArmsEventBridgeLike = {
  * 必须包装 Bridge.send 本身，在调用内层 send 前把 events[] 拆条。
  */
 export function patchArmsEventBridgeSend(bridge: ArmsEventBridgeLike): void {
-  if (bridge.__zcodeArmsBridgeForwardPatched) {
-    return;
-  }
-  const innerSend = bridge.send.bind(bridge);
-  bridge.send = (payload: string) => {
-    const payloads = expandArmsRumBridgePayloads(payload);
-    for (const item of payloads) {
-      innerSend(item);
-    }
-  };
+  bridge.send = () => {};
   bridge.__zcodeArmsBridgeForwardPatched = true;
 }
 
@@ -63,45 +52,10 @@ export function patchArmsEventBridgeIfPresent(): boolean {
   return true;
 }
 
-export function scheduleArmsEventBridgePatch(maxAttempts = 100): void {
-  if (patchArmsEventBridgeIfPresent()) {
-    return;
-  }
-  let attempts = 0;
-  const tick = (): void => {
-    if (patchArmsEventBridgeIfPresent()) {
-      return;
-    }
-    attempts += 1;
-    if (attempts < maxAttempts) {
-      setTimeout(tick, 10);
-    }
-  };
-  tick();
+export function scheduleArmsEventBridgePatch(_maxAttempts = 100): void {
+  // 不启动 SDK Bridge 重试定时器。
 }
 
-export function installArmsRumBridgeIpcForward(ipc: IpcRenderer): void {
-  const patched = ipc as PatchedIpcRenderer;
-  if (patched.__zcodeArmsIpcPatched) {
-    return;
-  }
-  const originalSend = ipc.send.bind(ipc);
-  patched.send = ((channel: string, ...args: unknown[]) => {
-    if (channel === ARMS_RUM_BRIDGE_CHANNEL && args.length > 0 && typeof args[0] === "string") {
-      const raw = args[0];
-      const payloads = expandArmsRumBridgePayloads(raw);
-      if (payloads.length === 0) {
-        return;
-      }
-      if (payloads.length === 1 && payloads[0] === raw) {
-        return originalSend(channel, raw);
-      }
-      for (const item of payloads) {
-        originalSend(channel, item);
-      }
-      return;
-    }
-    return originalSend(channel, ...args);
-  }) as IpcRenderer["send"];
-  patched.__zcodeArmsIpcPatched = true;
+export function installArmsRumBridgeIpcForward(_ipc: IpcRenderer): void {
+  // 未安装 ARMS SDK，无需修改正常 IPC。
 }

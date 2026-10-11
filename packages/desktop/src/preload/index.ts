@@ -721,10 +721,9 @@ contextBridge.exposeInMainWorld("zcode", {
   /** 通知 main process renderer 已就绪 */
   notifyRendererReady: () => ipcRenderer.send(PlatformChannels.RendererReady),
   /** 同步 renderer telemetry 上下文到 main process */
-  syncTelemetryContext: (context: TelemetryRendererContext) =>
-    ipcRenderer.send(PlatformChannels.SyncTelemetryContext, context),
+  syncTelemetryContext: (_context: TelemetryRendererContext) => {},
   /** 通过 main process 统一上报业务 telemetry 事件 */
-  reportTelemetryEvent: (payload: {
+  reportTelemetryEvent: (_payload: {
     context: TelemetryRendererContext;
     elementName: string;
     eventRegion: string;
@@ -734,14 +733,14 @@ contextBridge.exposeInMainWorld("zcode", {
     userId?: string;
     talkId?: string;
     messageId?: string;
-  }) => ipcRenderer.invoke(PlatformChannels.ReportTelemetryEvent, payload),
+  }) => Promise.resolve(),
   /** 通过 main process 统一上报 ARMS 自定义事件 */
-  reportArmsCustomEvent: (payload: {
+  reportArmsCustomEvent: (_payload: {
     name: string;
     group: string;
     value?: number;
     properties?: Record<string, string | number | boolean | undefined>;
-  }) => ipcRenderer.invoke(PlatformChannels.ReportArmsCustomEvent, payload),
+  }) => Promise.resolve(),
   /** 读取 Renderer 用户操作 Trace 灰度配置。 */
   getRendererActionTraceConfig: (): Promise<RendererActionTraceConfigV1> =>
     ipcRenderer.invoke(PlatformChannels.GetRendererActionTraceConfig),
@@ -755,10 +754,8 @@ contextBridge.exposeInMainWorld("zcode", {
       ipcRenderer.removeListener(PlatformChannels.RendererActionTraceConfigChanged, handler);
   },
   /** 发送已结束 Span；使用 send 避免遥测往返阻塞业务。 */
-  reportLocalTtftBatch: (batch: import("@zcode/shared").LocalTtftBatch): void =>
-    ipcRenderer.send(PlatformChannels.ReportLocalTtftBatch, batch),
-  reportRendererActionTraceBatch: (batch: RendererActionTraceBatchV1): void =>
-    ipcRenderer.send(PlatformChannels.ReportRendererActionTraceBatch, batch),
+  reportLocalTtftBatch: (_batch: import("@zcode/shared").LocalTtftBatch): void => {},
+  reportRendererActionTraceBatch: (_batch: RendererActionTraceBatchV1): void => {},
   /**
    * 主窗口 renderer 的 60 秒 heap 读数。
    * 只提供单向 send：main 不回执，renderer 也不能靠它反查 main 的进程事实。

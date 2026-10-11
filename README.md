@@ -1,3 +1,5 @@
+> **隐私分支**：保留自定义模型和终端能力，移除额外上传、遥测及自动更新。修改范围和验证限制见 [PRIVACY.md](PRIVACY.md)。
+
 # ZCode
 
 <div align="center">
@@ -10,8 +12,6 @@
 <p align="center">
   简体中文 | <a href="README.en.md">English</a>
 </p>
-
-
 
 ZCode 是 AI 编程工作台，提供桌面应用、浏览器界面和终端 Agent。本仓库包含客户端、后端服务、共享 UI，以及 Agent CLI 与运行时源码。
 

@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./privacy": "./src/privacy.ts",
+    "./privacy/telemetry": "./src/privacyTelemetry.ts",
     ".": "./src/index.ts",
     "./runtime-env": "./src/runtimeEnv.ts",
     "./mcp": "./src/mcp.ts",

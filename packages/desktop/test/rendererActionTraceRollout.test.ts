@@ -52,31 +52,11 @@ describe("renderer action trace rollout", () => {
     ).toBeNull();
   });
 
-  it("keeps the last valid snapshot when refresh fails", async () => {
-    const fetchConfig = vi
-      .fn<() => Promise<unknown>>()
-      .mockResolvedValueOnce({
-        code: 0,
-        data: {
-          configs: {
-            rendererActionTrace: {
-              enabled: true,
-              sample_ratio: 0.05,
-              enabled_groups: ["core"],
-              config_version: "v1",
-            },
-          },
-        },
-      })
-      .mockRejectedValueOnce(new Error("offline"));
-    const rollout = createRendererActionTraceRollout({
-      fetchConfig,
-      logger: { warn: vi.fn() },
-      cacheTtlMs: 1,
-    });
-
-    expect((await rollout.refresh()).enabled).toBe(true);
-    await new Promise((resolve) => setTimeout(resolve, 2));
-    expect(await rollout.refresh()).toMatchObject({ enabled: true, configVersion: "v1" });
+  it("keeps tracing disabled without fetching rollout configuration", async () => {
+    const fetchConfig = vi.fn();
+    const rollout = createRendererActionTraceRollout({ fetchConfig, logger: { warn: vi.fn() } });
+    expect((await rollout.refresh()).enabled).toBe(false);
+    expect((await rollout.awaitFirstDecision(1)).enabled).toBe(false);
+    expect(fetchConfig).not.toHaveBeenCalled();
   });
 });

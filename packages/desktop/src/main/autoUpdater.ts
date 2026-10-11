@@ -4,6 +4,9 @@ import type { ISettingService } from "@zcode/services";
 import pkg, { CancellationToken } from "electron-updater";
 import semver from "semver";
 const { autoUpdater } = pkg;
+// 禁止缓存的更新器在退出时自动安装。
+autoUpdater.autoDownload = false;
+autoUpdater.autoInstallOnAppQuit = false;
 import {
   DEFAULT_LOCALE,
   DEFAULT_ZCODE_ENDPOINT_ORIGIN,
@@ -53,7 +56,6 @@ let downloadingUpdateChannel: ElectronReleaseChannel | null = null;
 let downloadCancellationToken: CancellationToken | null = null;
 let readyUpdateChannel: ElectronReleaseChannel | null = null;
 let pendingManifestReleaseChannelRefresh: ElectronReleaseChannel | null = null;
-let onBeforeQuitAndInstall: (() => void | Promise<void>) | undefined;
 const acknowledgedPostUpdateReleaseNotesVersions = new Set<string>();
 const cancelledDownloadTokens = new WeakSet<CancellationToken>();
 let pendingCancelledDownloadErrorCount = 0;
@@ -61,7 +63,7 @@ let autoUpdaterSettingService: SettingServiceLike | undefined;
 // initAutoUpdater({ enabled: false }) 只清轮询并 return，electron-updater 实例保持未配置
 // （占位 feed、autoDownload 默认值）。任何漏改成按身份判断的入口若仍调用手动检查，
 // 都会对占位 feed 发真实请求。这里记住“本 flavor 已禁用”，让手动检查在模块内部 fail-closed。
-let autoUpdaterDisabledForProductFlavor = false;
+let autoUpdaterDisabledForProductFlavor = true;
 
 type SettingServiceLike = Pick<ISettingService, "get" | "update">;
 
@@ -96,7 +98,7 @@ type UpdateDownloadedInfoLike = {
 type RuntimeUpdateFeedSource = { url: string };
 
 type AutoUpdaterMenuState = UpdateStatePayload;
-let menuState: AutoUpdaterMenuState = { kind: "idle", enabled: true };
+let menuState: AutoUpdaterMenuState = { kind: "idle", enabled: false };
 
 export type ForceAutoUpdateState =
   | { kind: "checking" }
@@ -156,11 +158,7 @@ function isDevAutoUpdateEnabled(): boolean {
 }
 
 function canUseAutoUpdaterInCurrentRuntime(): boolean {
-  return app.isPackaged || isDevAutoUpdateEnabled();
-}
-
-function shouldRelaunchForDevAutoUpdateInstall(): boolean {
-  return !app.isPackaged && isDevAutoUpdateEnabled();
+  return false;
 }
 
 function getCurrentAppVersionForUpdate(): string {
@@ -422,89 +420,8 @@ function buildDownloadProgressState(
   };
 }
 
-async function quitAndInstallUpdate(rejectUnavailable = false) {
-  if (
-    menuState.kind === "update-downloaded" &&
-    readyUpdateVersion &&
-    readyUpdateRestoredFromPendingReleaseNotes
-  ) {
-    const restoredVersion = readyUpdateVersion;
-    const restoredReleaseNotes = readyUpdateReleaseNotes;
-    const restoredChannel = readyUpdateChannel ?? availableUpdateChannel;
-    logger.warn(
-      `[auto-update] restage restored pending update before install version=${restoredVersion}`,
-    );
-    clearReadyUpdateState();
-    availableUpdateReleaseNotes = restoredReleaseNotes;
-    setAutoUpdaterMenuState(
-      buildUpdateAvailableState(restoredVersion, restoredReleaseNotes, restoredChannel),
-    );
-    if (await shouldAutoDownloadAndInstallUpdates(autoUpdaterSettingService)) {
-      downloadAvailableUpdate("restored-pending-install");
-    }
-    return;
-  }
-
-  if (
-    menuState.kind !== "update-downloaded" ||
-    !readyUpdateVersion ||
-    !isReadyUpdateCurrentTarget()
-  ) {
-    // 修复原因：renderer 可能因为旧 UpdateReady 缓存残留而展示“重启以更新”，
-    // 但 main 在 staging error 后已经清掉 ready。目标已经换成更高版本时，
-    // 这里也不能安装仍低于目标的旧包。
-    logger.warn(`[auto-update] ignore quitAndInstall request: state=${menuState.kind}`);
-    if (rejectUnavailable) {
-      throw new Error(`Update is not ready to install: state=${menuState.kind}`);
-    }
-    return;
-  }
-
-  if (quitAndInstallInFlight) {
-    logger.info("[auto-update] quitAndInstall already in flight");
-    return;
-  }
-  quitAndInstallInFlight = true;
-  logger.info("[auto-update] user requested quit and install");
-  // macOS 上 quitAndInstall() 在关窗前不会先走 app.before-quit。
-  // 如果仍然只靠 before-quit 去放行窗口 close，现有的“红绿灯关闭=隐藏窗口”逻辑会把退出拦住，
-  // 表现成点击更新后界面消失但进程没退、安装流程也不再继续。
-  // 这里先通知主进程进入“允许真正关窗”的状态，再把控制权交给 updater。
-  try {
-    // Windows 更新会替换 resources/glm 等随包资源；
-    // 若 quitAndInstall 先于 host/agent 子进程完成退出，安装器可能在文件仍被占用时开始覆盖，
-    // 最终留下“应用能启动但 bundled agent 丢失”的半更新状态。
-    // 这里显式等待主进程完成退出准备，再进入安装器，尽量把资源替换和子进程回收时序拉直。
-    await onBeforeQuitAndInstall?.();
-  } catch (error) {
-    // 安装前退出准备是释放 host/agent 与 resources/glm 文件锁的硬前置条件。
-    // 如果这里失败后仍启动安装器，Windows 可能在资源仍被占用时覆盖安装目录，形成半更新。
-    quitAndInstallInFlight = false;
-    handleAutoUpdateFailure(error, "prepare quit and install failed");
-    if (rejectUnavailable) {
-      throw error;
-    }
-    return;
-  }
-
-  try {
-    if (shouldRelaunchForDevAutoUpdateInstall()) {
-      // 开发态只用于验证服务端 manifest、下载进度和安装入口 UI 闭环，
-      // 未打包应用没有可被安装器接管的真实发布包上下文。这里改为重启当前 dev app，
-      // 避免点击“重启以更新”执行退出准备后停在无响应状态。
-      logger.info("[auto-update] dev update install fallback: relaunch app");
-      app.relaunch();
-      app.exit(0);
-      return;
-    }
-
-    // 3.3.0 的 Windows 自定义 PowerShell delayed launcher 在 detached/hidden
-    // 模式下可能只创建 powershell.exe，却没有稳定执行到安装器启动，用户看到应用关闭但版本不变。
-    // 这里恢复 electron-updater 原生安装入口，避免把“launcher 进程创建成功”误当成更新已接管。
-    autoUpdater.quitAndInstall();
-  } finally {
-    quitAndInstallInFlight = false;
-  }
+async function quitAndInstallUpdate(_rejectUnavailable = false) {
+  return false;
 }
 
 function updateMenuItemLabel(label: string, enabled: boolean) {
@@ -872,31 +789,6 @@ async function persistPendingPostUpdateReleaseNotes(
   );
 }
 
-/**
- * 待展示说明里的 version 来自「已下载的安装包」；当前进程版本在安装完成前仍可能是旧版，
- * 此时待展示版本高于当前运行版本属于正常中间态，不能丢弃。
- * 若用户跳过自动更新链路（官网安装包等）直接升到更高版本，磁盘里可能仍残留更早一次下载写入的 pending，
- * 此时待展示版本低于已安装版本，应在启动时丢弃，否则会弹出旧版更新说明。
- */
-function shouldDiscardStalePendingReleaseNotes(
-  pendingVersion: string,
-  appVersion: string,
-): boolean {
-  const pending = pendingVersion.trim();
-  const current = appVersion.trim();
-  if (pending === current) {
-    return false;
-  }
-
-  const pendingCoerced = semver.valid(semver.coerce(pending));
-  const appCoerced = semver.valid(semver.coerce(current));
-  if (!pendingCoerced || !appCoerced) {
-    return false;
-  }
-
-  return semver.lt(pendingCoerced, appCoerced);
-}
-
 function isPendingReleaseNotesForFutureVersion(payload: PostUpdateReleaseNotesPayload): boolean {
   return isVersionGreaterThan(payload.version, getCurrentAppVersionForUpdate());
 }
@@ -986,13 +878,6 @@ function clearPersistedPostUpdateReleaseNotesForVersion(version: string, reason:
       logger.warn(`[auto-update] clear post-update release notes (${reason}) failed:`, error);
     }
   })();
-}
-
-function isCancelledDownload(cancellationToken: CancellationToken, error: unknown): boolean {
-  return (
-    cancelledDownloadTokens.has(cancellationToken) ||
-    (cancellationToken.cancelled && isDownloadCancellationError(error))
-  );
 }
 
 function isDownloadCancellationError(error: unknown): boolean {
@@ -1226,63 +1111,8 @@ async function clearSkippedUpdateVersionForManualCheck(
   }
 }
 
-export function downloadAvailableUpdate(reason = "renderer") {
-  if (!canUseAutoUpdaterInCurrentRuntime()) {
-    logger.info(`[auto-update] skip ${reason} download: not packaged`);
-    return;
-  }
-
-  if (menuState.kind === "update-downloaded") {
-    logger.info(`[auto-update] skip ${reason} download: update already ready`);
-    return;
-  }
-
-  if (menuState.kind === "download-progress") {
-    logger.info(`[auto-update] skip ${reason} download: download already in progress`);
-    return;
-  }
-
-  if (downloadCancellationToken) {
-    logger.info(`[auto-update] skip ${reason} download: download already requested`);
-    return;
-  }
-
-  if (menuState.kind !== "update-available") {
-    logger.info(`[auto-update] skip ${reason} download: state=${menuState.kind}`);
-    return;
-  }
-
-  downloadingUpdateVersion = menuState.version;
-  downloadingUpdateReleaseNotes = menuState.releaseNotes ?? availableUpdateReleaseNotes;
-  downloadingUpdateChannel = menuState.channel ?? availableUpdateChannel;
-  // electron-updater 如果命中本地已下载缓存，会在 downloadUpdate() 内直接触发
-  // update-downloaded。这里不能先广播 0% 下载态，否则用户会先看到“下载中”，
-  // 再跳到“已下载”；真实下载态改由第一条 download-progress 事件驱动。
-  notifyForceAutoUpdate({
-    kind: "downloading",
-    version: downloadingUpdateVersion,
-    progress: "0",
-  });
-
-  const cancellationToken = new CancellationToken();
-  downloadCancellationToken = cancellationToken;
-  void autoUpdater
-    .downloadUpdate(cancellationToken)
-    .catch((error) => {
-      if (isCancelledDownload(cancellationToken, error)) {
-        logger.info(`[auto-update] ${reason} download cancelled`);
-        return;
-      }
-      // 下载由用户点击或强更 gate 显式触发，Promise reject 也必须立即反馈。
-      // 不能只依赖 electron-updater 后续是否额外触发 error 事件，否则 UI 会卡在下载态。
-      handleAutoUpdateFailure(error, "download update failed");
-    })
-    .finally(() => {
-      if (downloadCancellationToken === cancellationToken) {
-        downloadCancellationToken = null;
-      }
-      cancellationToken.dispose();
-    });
+export function downloadAvailableUpdate(_reason = "renderer") {
+  return;
 }
 
 export function cancelDownloadingUpdate(reason = "renderer") {
@@ -1332,48 +1162,9 @@ export function setAutoUpdaterMenuLocale(locale: Locale) {
   syncMenuItemState();
 }
 
-export async function hydratePendingPostUpdateReleaseNotes(settingService: SettingServiceLike) {
-  const settings = await settingService.get();
-  pendingPostUpdateReleaseNotes = settings.pendingPostUpdateReleaseNotes ?? null;
-  deliveredPostUpdateReleaseNotesWebContentsId = null;
-
-  if (pendingPostUpdateReleaseNotes) {
-    logger.info(
-      `[auto-update] hydrated pending post-update release notes version=${pendingPostUpdateReleaseNotes.version}`,
-    );
-  }
-
-  if (
-    pendingPostUpdateReleaseNotes &&
-    shouldDiscardStalePendingReleaseNotes(
-      pendingPostUpdateReleaseNotes.version,
-      getCurrentAppVersionForUpdate(),
-    )
-  ) {
-    logger.info(
-      `[auto-update] discard stale post-update release notes pending=${pendingPostUpdateReleaseNotes.version} app=${getCurrentAppVersionForUpdate()}`,
-    );
-    await clearPendingPostUpdateReleaseNotes(
-      settingService,
-      "hydrate-pending-older-than-installed-app",
-    );
-  }
-
-  if (
-    pendingPostUpdateReleaseNotes &&
-    isPendingReleaseNotesForFutureVersion(pendingPostUpdateReleaseNotes)
-  ) {
-    // 用户下载完成但尚未安装时重启应用，electron-updater 的内存 ready 状态会丢失，
-    // 但本地 pending 包和版本说明仍在。这里用“pending 版本高于当前版本”恢复待安装状态，
-    // 避免已有缓存时仍提示“下载更新”，点击后又被 dev staging 错误打回 idle。
-    readyUpdateVersion = pendingPostUpdateReleaseNotes.version;
-    readyUpdateReleaseNotes = pendingPostUpdateReleaseNotes;
-    readyUpdateRestoredFromPendingReleaseNotes = true;
-    setAutoUpdaterMenuState(buildUpdateDownloadedState(readyUpdateVersion));
-    logger.info(
-      `[auto-update] restored ready update from pending release notes version=${readyUpdateVersion}`,
-    );
-  }
+export async function hydratePendingPostUpdateReleaseNotes(_settingService: SettingServiceLike) {
+  // 不恢复旧缓存的待安装状态。
+  return;
 }
 
 export function syncReadyUpdateToWindow(win: BrowserWindow) {
@@ -1505,19 +1296,21 @@ export async function acknowledgePostUpdateReleaseNotes(
 }
 
 export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Promise<void> {
+  // 隐私版不能通过旧设置、dev 开关或远端发行配置恢复更新能力。
+  options = { ...options, enabled: false };
   if (options.enabled === false) {
     autoUpdaterDisabledForProductFlavor = true;
     if (autoUpdatePollTimer) {
       clearInterval(autoUpdatePollTimer);
       autoUpdatePollTimer = null;
     }
-    logger.info("[auto-update] disabled for this desktop product flavor");
+    setAutoUpdaterMenuState({ kind: "idle", enabled: false });
+    logger.info("[auto-update] disabled in the privacy edition");
     return;
   }
   autoUpdaterDisabledForProductFlavor = false;
   if (!canUseAutoUpdaterInCurrentRuntime()) return;
 
-  onBeforeQuitAndInstall = options.onBeforeQuitAndInstall;
   if (options.locale) {
     menuLocale = options.locale;
   }
@@ -1859,75 +1652,11 @@ function ensureAutoUpdatePollInterval() {
 
 export function requestForceAutoUpdate(
   onStateChange: (state: ForceAutoUpdateState) => void,
-  reason = "force-update",
+  _reason = "force-update",
   _minimumVersion?: string,
 ) {
-  const dispose = () => {
-    if (activeForceAutoUpdateListener === onStateChange) {
-      activeForceAutoUpdateListener = null;
-    }
-  };
-
-  activeForceAutoUpdateListener = onStateChange;
-  forceAutoUpdateLastLoggedProgressBucket = null;
-  logger.info(`[force-update] 自动升级开始 reason=${reason}`);
-  onStateChange({ kind: "checking" });
-
-  if (!canUseAutoUpdaterInCurrentRuntime()) {
-    const message = "not packaged";
-    logger.info(`[force-update] 自动升级跳过：${message}`);
-    onStateChange({ kind: "dev-skipped", message });
-    return dispose;
-  }
-
-  if (menuState.kind === "update-downloaded") {
-    onStateChange({ kind: "installing" });
-    void quitAndInstallUpdate();
-    return dispose;
-  }
-
-  if (menuState.kind === "update-available") {
-    downloadAvailableUpdate("force-update");
-    return dispose;
-  }
-
-  if (menuState.kind === "download-progress") {
-    onStateChange({
-      kind: "downloading",
-      ...("version" in menuState && menuState.version ? { version: menuState.version } : {}),
-      progress: menuState.progress,
-    });
-    return dispose;
-  }
-
-  if (checkForUpdatesInFlight) {
-    logger.info(`[force-update] 自动升级复用进行中的更新检查`);
-    return dispose;
-  }
-
-  const checkId = beginAutoUpdateCheck();
-  setAutoUpdaterMenuState({ kind: "checking", enabled: false });
-  autoUpdater
-    .checkForUpdates()
-    .catch((err) => {
-      const message = err instanceof Error ? err.message : String(err);
-      logger.error(`[auto-update] ${reason} check failed:`, err);
-      setAutoUpdaterMenuState(
-        readyUpdateVersion
-          ? buildUpdateDownloadedState(readyUpdateVersion)
-          : { kind: "idle", enabled: true },
-      );
-      onStateChange({ kind: "error", message });
-    })
-    .finally(() => {
-      finishAutoUpdateCheck(reason, checkId);
-    });
-
-  return () => {
-    if (activeForceAutoUpdateListener === onStateChange) {
-      activeForceAutoUpdateListener = null;
-    }
-  };
+  onStateChange({ kind: "dev-skipped", message: "Updates are disabled in the privacy edition" });
+  return () => {};
 }
 
 export function requestAutoUpdateCheckWithoutWindow(reason = "force-update") {
