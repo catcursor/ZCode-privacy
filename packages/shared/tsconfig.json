@@ -9,5 +9,7 @@
     // 允许 shared 编译复制该 JS，避免 dist/index.js 导出一个不存在的文件。
     "allowJs": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // 源码态 Vite/Node 配置需要真实 JS；显式保留它，避免同名类型声明使 tsc 跳过复制。
+  "files": ["src/privacyNetwork.js"]
 }

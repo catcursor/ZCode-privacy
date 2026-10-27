@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { rewriteZhipuUrl } from "@zcode/shared/privacy/network";
 import {
   ZCODE_AGENT_CA_CERT_ENV_KEY,
   ZCODE_HTTP_PROXY_ENV_KEY,
@@ -62,6 +63,11 @@ function resolveProxyForRequestInternal(
   const url = typeof requestUrl === "string" ? safeUrl(requestUrl) : requestUrl;
   if (!url || (url.protocol !== "http:" && url.protocol !== "https:")) {
     return { noProxyMatched: false };
+  }
+
+  // 智谱映射目标必须留在本机，不能让显式代理替本机访问其自己的 127.0.0.1。
+  if (["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)) {
+    return { noProxyMatched: true };
   }
 
   if (shouldBypassProxy(url, readExplicitNoProxyValue(options))) {
@@ -168,7 +174,7 @@ function normalizeProxyUrl(value: string | undefined): string | undefined {
 
   const candidate = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
   try {
-    return new URL(candidate).href;
+    return new URL(rewriteZhipuUrl(candidate)).href;
   } catch {
     return undefined;
   }

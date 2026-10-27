@@ -1,11 +1,12 @@
 import { ZCODE_VERSION, type ZCodeEnv } from "@zcode/shared";
+import { rewriteZhipuUrl } from "@zcode/shared/privacy/network";
 
 declare const __ZCODE_REMOTE_CDN_RELEASE_ROOTS__: readonly string[] | undefined;
 
 const REMOTE_CDN_RELEASE_ROOTS = {
-  domestic: "https://cdn.codegeex.cn/zcode/electron/releases",
+  domestic: "https://127.0.0.1/zcode/electron/releases",
   // 开发构建未注入 CDN_DOMAIN 时也须使用当前发布域名，避免仍请求旧域名。
-  overseas: "https://cdn-zcode.z.ai/zcode/electron/releases",
+  overseas: "https://127.0.0.1/zcode/electron/releases",
 } as const;
 const TEST_REMOTE_CDN_RELEASE_ROOT = "http://intranet.example.invalid:12345/ssh-remote-assets";
 
@@ -65,12 +66,14 @@ export function resolveRemoteCdnBaseUrls(options: ResolveRemoteCdnOptions = {}):
   if (configuredReleaseRoots.length > 0) {
     // Bugfix：remote runtime 的 manifest/components 下载根不能继续写死旧 CDN。
     // 构建期按 CI 的 CDN_DOMAIN/OSS_PATH_PREFIX 注入有序列表，切换时只改 CI 变量。
-    return configuredReleaseRoots.map(
-      (releaseRoot) => `${normalizeBaseUrl(releaseRoot)}/${version}`,
-    );
+    return [
+      ...new Set(
+        configuredReleaseRoots.map((releaseRoot) => `${normalizeBaseUrl(releaseRoot)}/${version}`),
+      ),
+    ];
   }
 
-  return orderedReleaseRoots.map((releaseRoot) => `${releaseRoot}/${version}`);
+  return [...new Set(orderedReleaseRoots.map((releaseRoot) => `${releaseRoot}/${version}`))];
 }
 
 export function resolvePrimaryRemoteCdnBaseUrl(
@@ -80,7 +83,7 @@ export function resolvePrimaryRemoteCdnBaseUrl(
 }
 
 function normalizeBaseUrl(baseUrl: string): string {
-  return baseUrl.replace(/\/+$/, "");
+  return rewriteZhipuUrl(baseUrl).replace(/\/+$/, "");
 }
 
 function resolveTimeZoneOffsetMinutes(timeZone: string, now: Date): number | null {

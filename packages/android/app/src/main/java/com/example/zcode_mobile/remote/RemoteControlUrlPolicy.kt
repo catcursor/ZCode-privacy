@@ -50,7 +50,7 @@ object RemoteControlUrlPolicy {
         val host = uri.host?.lowercase().orEmpty()
         val path = uri.path.orEmpty()
 
-        if (scheme == "https" && host == "zcode.z.ai" && path.startsWith("/remote")) {
+        if (scheme == "https" && host == "127.0.0.1" && path.startsWith("/remote")) {
             return true
         }
 
@@ -63,7 +63,7 @@ object RemoteControlUrlPolicy {
         if (!path.startsWith("/remote")) {
             return false
         }
-        if (host == "zcode.z.ai") {
+        if (host == "127.0.0.1") {
             return scheme == "https"
         }
         return (scheme == "http" || scheme == "https") && isDebugHost(host)

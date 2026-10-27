@@ -18,10 +18,10 @@ export const ZAI_OAUTH_PROVIDER_CONFIG: Omit<OAuthProviderRuntimeConfig, "appSec
   enabled: true,
   order: 1,
   // ZAI 当前 OAuth 授权入口使用 /api/oauth 前缀，继续走 /auth/oauth 会打开旧入口。
-  authorizeUrl: "https://chat.z.ai/api/oauth/authorize",
-  tokenUrl: "https://zcode.z.ai/api/v1/oauth/token",
-  userinfoUrl: "https://chat.z.ai/api/oauth/userinfo",
-  businessLoginUrl: "https://api.z.ai/api/auth/z/login",
+  authorizeUrl: "https://127.0.0.1/api/oauth/authorize",
+  tokenUrl: "https://127.0.0.1/api/v1/oauth/token",
+  userinfoUrl: "https://127.0.0.1/api/oauth/userinfo",
+  businessLoginUrl: "https://127.0.0.1/api/auth/z/login",
   // 生产 client_id 不是 secret，但保留 fallback 可以避免未配置 env 的旧构建直接无法登录。
   appId: "client_P8X5CMWmlaRO9gyO-KSqtg",
   redirectUri: "zcode://oauth/callback",

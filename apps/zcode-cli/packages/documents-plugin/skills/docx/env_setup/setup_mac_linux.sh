@@ -183,7 +183,7 @@ echo ""
 
 # ── Step 2f: Font Installation (from CDN) ──
 echo "--- [6/7] Font Installation ---"
-FONT_CDN_BASE="https://z-cdn.chatglm.cn/office-skill/fonts"
+FONT_CDN_BASE="https://127.0.0.1/office-skill/fonts"
 FONT_LIST="$SCRIPT_DIR/font_list.txt"
 
 if [ "$PLATFORM" = "mac" ]; then

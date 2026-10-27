@@ -19,10 +19,11 @@ describe("privacy edition boundaries", () => {
       redirect: "follow",
     });
     expect(transport).toHaveBeenCalledOnce();
-    expect(transport.mock.calls[0]?.[1]).toMatchObject({
-      body: "synthetic-prompt",
-      redirect: "follow",
-    });
+    const [sentUrl, sentInit] = transport.mock.calls[0]!;
+    expect(String(sentUrl)).toBe("https://custom-model.example/v1/chat/completions");
+    await expect(new Request(sentUrl, sentInit).text()).resolves.toBe("synthetic-prompt");
+    // 外部地址仍可重定向，但逐跳执行策略，不能把后续跳转留给底层自动跟随。
+    expect(sentInit?.redirect).toBe("manual");
     const createDispatcher = vi.fn(async () => ({ close: async () => {} }));
     const fetchWithDispatcher = vi.fn(async () => new Response("ok"));
     const network = createHostApiNetworkTransport(

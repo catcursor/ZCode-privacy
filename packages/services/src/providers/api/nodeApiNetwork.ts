@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { rootCertificates } from "node:tls";
 import { Agent, ProxyAgent, fetch as undiciFetch, type Dispatcher } from "undici";
+import { rewriteZhipuUrl } from "@zcode/shared/privacy/network";
+import { createZhipuLoopbackFetch } from "@zcode/shared/privacy/fetch";
 
 export interface HostApiNetworkOptions {
   httpProxy?: string;
@@ -31,7 +33,7 @@ export function mergeHostApiCaCertificates(
 function normalizeProxyUrl(value: string): string | undefined {
   const candidate = /^\w[\w+.-]*:\/\//.test(value) ? value : `http://${value}`;
   try {
-    const url = new URL(candidate);
+    const url = new URL(rewriteZhipuUrl(candidate));
     if (!url.hostname || !["http:", "https:"].includes(url.protocol)) {
       return undefined;
     }
@@ -71,6 +73,9 @@ export function resolveHostProxyForUrl(
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     return { kind: "direct" };
   }
+  if (["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)) {
+    return { kind: "direct", noProxyMatched: true };
+  }
   if (matchesNoProxy(url, options.noProxy)) {
     return { kind: "direct", noProxyMatched: true };
   }
@@ -109,9 +114,12 @@ export function createHostApiNetworkTransport(
   let disposePromise: Promise<void> | undefined;
   let disposeMode: "close" | "destroy" | undefined;
   const dispatcherFactory = dependencies.createDispatcher ?? createDispatcher;
-  const fetchWithDispatcher =
+  const rawFetchWithDispatcher =
     dependencies.fetchWithDispatcher ??
     ((input, init) => undiciFetch(input, init as never) as unknown as Promise<Response>);
+  const fetchWithDispatcher = createZhipuLoopbackFetch(
+    rawFetchWithDispatcher as typeof globalThis.fetch,
+  );
 
   const fetch: typeof globalThis.fetch = async (input, init) => {
     if (disposed) {
@@ -130,13 +138,23 @@ export function createHostApiNetworkTransport(
     if (disposed || generation !== requestGeneration) {
       throw new Error("Host API network transport has been disposed");
     }
-    const requestUrl = input instanceof Request ? input.url : String(input);
+    const originalUrl = input instanceof Request ? input.url : String(input);
+    const requestUrl = rewriteZhipuUrl(originalUrl);
+    const requestInput =
+      requestUrl === originalUrl
+        ? input
+        : input instanceof Request
+          ? new Request(requestUrl, input)
+          : requestUrl;
     const route = resolveHostProxyForUrl(requestUrl, options);
     if (route.kind === "invalid") {
       throw new Error(route.reason);
     }
     if (route.kind === "direct" && !options.caCertPath) {
-      return globalThis.fetch(input as Parameters<typeof fetch>[0], init);
+      return createZhipuLoopbackFetch(globalThis.fetch)(
+        requestInput as Parameters<typeof fetch>[0],
+        init,
+      );
     }
 
     const dispatcherKey = `${route.kind}:${route.kind === "proxy" ? route.proxyUrl : "direct"}:${options.caCertPath ?? ""}`;
@@ -183,13 +201,10 @@ export function createHostApiNetworkTransport(
     if (disposed || generation !== requestGeneration) {
       throw new Error("Host API network transport has been disposed");
     }
-    return fetchWithDispatcher(
-      input as unknown as string,
-      {
-        ...init,
-        dispatcher,
-      } as Omit<RequestInit, "dispatcher"> & { dispatcher: Dispatcher },
-    );
+    return fetchWithDispatcher(requestInput, {
+      ...init,
+      dispatcher,
+    } as unknown as RequestInit);
   };
 
   const startDispose = (mode: "close" | "destroy"): Promise<void> => {

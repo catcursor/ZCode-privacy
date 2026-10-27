@@ -6,15 +6,18 @@ import { createProviderEndpointRoutingFetch } from "../src/model/provider-endpoi
 
 const SOURCE = "https://open.bigmodel.cn/api/anthropic/v1/messages";
 const ORIGIN = "https://gateway.example.test";
-const TARGET_PATH = "/api/v1/ultra/anthropic/v1/messages";
+const TARGET_PATH = "/api/anthropic/v1/messages";
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe("static provider endpoint routing", () => {
   it.each([
-    [SOURCE, TARGET_PATH],
-    ["https://OPEN.BIGMODEL.CN:443/api/anthropic/v1/messages/", TARGET_PATH],
-    ["https://api.z.ai/api/anthropic/v1/messages", "/api/v1/ultra-zai/anthropic/v1/messages"],
+    [SOURCE, `https://127.0.0.1${TARGET_PATH}`],
+    ["https://OPEN.BIGMODEL.CN:443/api/anthropic/v1/messages/", `https://127.0.0.1${TARGET_PATH}/`],
+    ["https://api.z.ai/api/anthropic/v1/messages", `https://127.0.0.1${TARGET_PATH}`],
+    ["http://open.bigmodel.cn/api/anthropic/v1/messages", `http://127.0.0.1${TARGET_PATH}`],
+    ["https://open.bigmodel.cn:444/api/anthropic/v1/messages", `https://127.0.0.1:444${TARGET_PATH}`],
+    ["https://sub.open.bigmodel.cn/api/anthropic/v1/messages/count_tokens", `https://127.0.0.1${TARGET_PATH}/count_tokens`],
   ])("routes %s with query preserved and no configuration IO", async (source, target) => {
     const network = vi.fn(() => {
       throw new Error("unexpected configuration request");
@@ -23,17 +26,15 @@ describe("static provider endpoint routing", () => {
     const port = createStaticProviderEndpointRoutingPort(ORIGIN);
     await expect(port.resolve(`${source}?id=a%2Bb&empty=`)).resolves.toEqual({
       routed: true,
-      url: `${ORIGIN}${target}?id=a%2Bb&empty=`,
+      url: `${target}?id=a%2Bb&empty=`,
     });
     expect(network).not.toHaveBeenCalled();
   });
 
   it.each([
-    "http://open.bigmodel.cn/api/anthropic/v1/messages",
-    "https://open.bigmodel.cn:444/api/anthropic/v1/messages",
-    "https://open.bigmodel.cn/api/anthropic/v1/messages/count_tokens",
-    "https://open.bigmodel.cn/api/anthropic/v1/complete",
-    "https://sub.open.bigmodel.cn/api/anthropic/v1/messages",
+    "http://127.0.0.1:8000/api/anthropic/v1/messages",
+    "https://api.openai.com/v1/responses",
+    "https://open.bigmodel.cn.example.com/api/anthropic/v1/messages",
     "https://provider.example.test/api/anthropic/v1/messages",
     "not a URL",
   ])("leaves unmatched endpoint %s unchanged", async (url) => {
@@ -68,7 +69,7 @@ describe("static provider endpoint routing", () => {
     const input =
       kind === "Request" ? new Request(SOURCE, init) : kind === "URL" ? new URL(SOURCE) : SOURCE;
     expect(await transport(input, kind === "Request" ? undefined : init)).toBe(response);
-    expect(sent?.url).toBe(`${ORIGIN}${TARGET_PATH}`);
+    expect(sent?.url).toBe(`https://127.0.0.1${TARGET_PATH}`);
     expect(sent?.method).toBe("POST");
     expect(sent?.headers.get("host")).toBeNull();
     expect(sent?.headers.get("authorization")).toBe("Bearer example");
@@ -79,7 +80,7 @@ describe("static provider endpoint routing", () => {
     await expect(response.text()).resolves.toBe("data: first\n\ndata: second\n\n");
   });
 
-  it("sends the routed request to an actual gateway without a configuration request", async () => {
+  it("sends to actual loopback with the original port/path instead of the supplied gateway", async () => {
     const received: Array<{
       url: string;
       host: string | undefined;
@@ -102,10 +103,10 @@ describe("static provider endpoint routing", () => {
     const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     try {
       const fetch = createProviderEndpointRoutingFetch({
-        routingPort: createStaticProviderEndpointRoutingPort(origin),
+        routingPort: createStaticProviderEndpointRoutingPort(ORIGIN),
         fetch: globalThis.fetch,
       });
-      const response = await fetch(`${SOURCE}?stream=true`, {
+      const response = await fetch(`http://open.bigmodel.cn:${new URL(origin).port}${TARGET_PATH}?stream=true`, {
         method: "POST",
         body: "request-body",
         headers: { Host: "open.bigmodel.cn", Authorization: "Bearer example" },

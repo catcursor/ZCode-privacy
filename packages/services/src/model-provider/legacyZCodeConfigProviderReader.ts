@@ -61,7 +61,7 @@ function isLegacyPresetGlmProviderId(providerId: string): boolean {
   return LEGACY_PRESET_GLM_PROVIDER_IDS.has(providerId);
 }
 
-const BIGMODEL_CODING_PLAN_ANTHROPIC_BASE_URL = "https://open.bigmodel.cn/api/anthropic";
+const BIGMODEL_CODING_PLAN_ANTHROPIC_BASE_URL = "https://127.0.0.1/api/anthropic";
 
 function normalizeBigModelCodingPlanAnthropicBaseUrlForEnv(
   baseUrl: string | undefined,

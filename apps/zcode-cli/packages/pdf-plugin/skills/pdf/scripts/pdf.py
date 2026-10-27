@@ -1030,7 +1030,7 @@ def meta_brand(argv: list):
             '/Title': title,
             '/Author': 'Z.ai',
             '/Creator': 'Z.ai',
-            '/Producer': 'http://z.ai',
+            '/Producer': 'http://127.0.0.1',
         })
 
         # Write output
@@ -1047,7 +1047,7 @@ def meta_brand(argv: list):
             print(f"  Title: {title}")
             print("  Author: Z.ai")
             print("  Creator: Z.ai")
-            print("  Producer: http://z.ai")
+            print("  Producer: http://127.0.0.1")
             if out != input_path:
                 print(f"  Output: {out}")
 

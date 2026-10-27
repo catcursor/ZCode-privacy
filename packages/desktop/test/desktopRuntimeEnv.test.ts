@@ -752,9 +752,9 @@ describe("desktopRuntimeEnv buildHostProcessEnv", () => {
 
     const env = loadHostProcessEnvFromLocalFiles();
 
-    expect(env.ZCODE_BASE_URL).toBe("https://zcode.z.ai");
-    expect(env.ZAI_OAUTH_ORIGIN).toBe("https://chat.z.ai");
-    expect(env.ZAI_BUSINESS_BASE_URL).toBe("https://api.z.ai");
+    expect(env.ZCODE_BASE_URL).toBe("https://127.0.0.1");
+    expect(env.ZAI_OAUTH_ORIGIN).toBe("https://127.0.0.1");
+    expect(env.ZAI_BUSINESS_BASE_URL).toBe("https://127.0.0.1");
     expect(env.ZAI_OAUTH_CLIENT_ID).toBe("client_P8X5CMWmlaRO9gyO-KSqtg");
   });
 

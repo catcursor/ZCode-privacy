@@ -7,6 +7,7 @@ import {
   resolveTlsCaCertFile,
 } from "./http-config.js";
 import { readIncomingResponse, toWebResponse } from "./incoming-response.js";
+import { createZhipuLoopbackFetch } from "@zcode/shared/privacy/fetch";
 
 export type NetworkFetch = typeof globalThis.fetch;
 
@@ -27,6 +28,10 @@ interface NormalizedFetchRequest {
 }
 
 export function createNetworkProxyFetch(options: NetworkProxyFetchOptions): NetworkFetch {
+  return createZhipuLoopbackFetch(createNetworkFetch(options));
+}
+
+function createNetworkFetch(options: NetworkProxyFetchOptions): NetworkFetch {
   const directFetch = options.fetch ?? globalThis.fetch.bind(globalThis);
   if (!hasNetworkFetchPolicy(options)) {
     return directFetch;

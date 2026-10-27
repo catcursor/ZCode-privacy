@@ -17,7 +17,7 @@ describe("NodeApiClient endpoint rewriting", () => {
     }
   });
 
-  it("rewrites only the configured zcode endpoint origin", async () => {
+  it("rewrites the configured endpoint and independently maps vendor domains to loopback", async () => {
     const fetchImpl = vi.fn(async () => new Response("{}", { status: 200 }));
     const client = createNodeApiClient({
       fetchImpl: fetchImpl as typeof fetch,
@@ -33,7 +33,7 @@ describe("NodeApiClient endpoint rewriting", () => {
       "http://localhost:3030/api/v1/event/report?x=1",
       "https://example.com/static/config.json",
       "https://feedback.example.invalid/api/v1/tickets",
-      "https://api.z.ai/v1/models",
+      "https://127.0.0.1/v1/models",
     ]);
   });
 
@@ -52,7 +52,7 @@ describe("NodeApiClient endpoint rewriting", () => {
     expect(zcodeHeaders.get("X-Title")).toBe(ZCODE_SOURCE_HEADERS["X-Title"]);
     expect(zcodeHeaders.get("X-OpenRouter-Title")).toBeNull();
     expect(zcodeHeaders.get("X-OpenRouter-Categories")).toBeNull();
-    expect(zcodeHeaders.get("HTTP-Referer")).toBe("https://zcode.z.ai");
+    expect(zcodeHeaders.get("HTTP-Referer")).toBe("https://127.0.0.1");
     expect(zcodeHeaders.get("X-App-Version")).toBeNull();
     expect(zcodeHeaders.get("X-ZCode-App-Version")).toBeTruthy();
     expect(zcodeHeaders.get("X-Platform")).toBe(`${process.platform}-${process.arch}`);
@@ -95,7 +95,7 @@ describe("NodeApiClient endpoint rewriting", () => {
     expect(headers.get("X-OpenRouter-Categories")).toBeNull();
     expect(headers.get("Authorization")).toBe("Bearer token");
     expect(headers.get("X-Device-Mid")).toBe("caller-device-mid");
-    expect(headers.get("HTTP-Referer")).toBe("https://zcode.z.ai");
+    expect(headers.get("HTTP-Referer")).toBe("https://127.0.0.1");
     expect(headers.get("x-request-id")).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     );

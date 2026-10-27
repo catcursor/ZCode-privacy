@@ -552,7 +552,7 @@ export default {
   extraMetadata: {
     version: buildMetadata.appVersion,
     zcodeProductFlavor: desktopProductIdentity.flavor,
-    homepage: "https://zcode.z.ai",
+    homepage: "https://127.0.0.1",
     author: {
       name: "ZCode",
       email: "dev@zcode.z.ai",

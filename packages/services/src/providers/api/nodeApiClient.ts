@@ -9,6 +9,8 @@ import {
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import { buildZCodeSourceHeaders } from "../sourceHeaders.js";
 import { withRequestIdHeader } from "./requestIdHeaders.js";
+import { rewriteZhipuUrl } from "@zcode/shared/privacy/network";
+import { createZhipuLoopbackFetch } from "@zcode/shared/privacy/fetch";
 
 const log = createServiceLogger("node-api-client");
 
@@ -113,7 +115,8 @@ function readHeaderKeys(headers: RequestInit["headers"] | undefined): string[] {
 
 function isRequestForEndpoint(input: string | URL, endpointOrigin: string): boolean {
   try {
-    return new URL(resolveUrl(input)).origin === normalizeZCodeEndpointOrigin(endpointOrigin);
+    // 身份头匹配必须比较原始 origin；出站回环归一化会把不同厂商折叠成同一个主机。
+    return new URL(resolveUrl(input)).origin === new URL(endpointOrigin).origin;
   } catch {
     return false;
   }
@@ -140,8 +143,12 @@ function resolveRequestHeaders(
   requestInput: string | URL,
   headers: RequestInit["headers"] | undefined,
   endpointOrigin: string,
+  originalEndpointOrigin = endpointOrigin,
 ): RequestInit["headers"] | undefined {
-  if (!isRequestForEndpoint(requestInput, endpointOrigin)) {
+  if (
+    !isRequestForEndpoint(requestInput, endpointOrigin) &&
+    !isRequestForEndpoint(requestInput, originalEndpointOrigin)
+  ) {
     return headers;
   }
 
@@ -173,8 +180,12 @@ export class NodeApiClient implements ApiClient {
     const endpointOrigin = this.resolveZCodeEndpointOrigin
       ? await this.resolveZCodeEndpointOrigin()
       : undefined;
-    const activeEndpointOrigin = endpointOrigin ?? DEFAULT_ZCODE_ENDPOINT_ORIGIN;
-    const requestInput = rewriteZCodeEndpointUrl(input, activeEndpointOrigin);
+    const activeEndpointOrigin = normalizeZCodeEndpointOrigin(
+      endpointOrigin ?? DEFAULT_ZCODE_ENDPOINT_ORIGIN,
+    );
+    const routedInput = rewriteZCodeEndpointUrl(input, activeEndpointOrigin);
+    const mappedInput = rewriteZhipuUrl(String(routedInput));
+    const requestInput = mappedInput === String(routedInput) ? routedInput : mappedInput;
     const url = resolveUrl(requestInput);
     const method = resolveMethod(init);
     const timeoutMs = init?.timeoutMs;
@@ -197,9 +208,15 @@ export class NodeApiClient implements ApiClient {
       if (signal?.aborted) {
         throw new DOMException("The operation was aborted.", "AbortError");
       }
-      const fetchImpl = this.fetchImpl ?? globalThis.fetch;
+      const fetchImpl = createZhipuLoopbackFetch(this.fetchImpl ?? globalThis.fetch);
       const requestHeaders = withRequestIdHeader(
-        resolveRequestHeaders(requestInput, init?.headers, activeEndpointOrigin),
+        // 先按原目的地识别来源，避免多个厂商域名折叠到回环后错误继承 ZCode 身份头。
+        resolveRequestHeaders(
+          routedInput,
+          init?.headers,
+          activeEndpointOrigin,
+          endpointOrigin ?? activeEndpointOrigin,
+        ),
       );
       if (isRequestForEndpoint(requestInput, activeEndpointOrigin)) {
         // 调试说明：这里只记录 header key，避免 Authorization / token 等敏感值落盘。

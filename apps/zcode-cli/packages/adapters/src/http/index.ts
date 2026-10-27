@@ -27,6 +27,7 @@ import {
 } from "./public-egress-policy.js";
 import { readIncomingResponse } from "../network/incoming-response.js";
 import { readResponseBody, type ResponseLike } from "./response-body.js";
+import { rewriteZhipuUrl } from "@zcode/shared/privacy/network";
 
 const TRACE_HEADER = "x-zcode-trace-id";
 const DEFAULT_TIMEOUT_MS = 180_000;
@@ -218,7 +219,7 @@ function fetchHttpResponse(
 function normalizeUrl(value: string): URL {
   let url: URL;
   try {
-    url = new URL(value);
+    url = new URL(rewriteZhipuUrl(value));
   } catch (error) {
     throw createHttpClientError({
       code: "invalid_url",

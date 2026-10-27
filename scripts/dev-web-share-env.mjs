@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 
-const TEST_SHARE_ENDPOINT_ORIGIN = "https://zcode.z.ai";
+const TEST_SHARE_ENDPOINT_ORIGIN = "https://127.0.0.1";
 
 const mode = process.argv[2]?.trim().toLowerCase();
 if (mode !== "test" && mode !== "mock") {

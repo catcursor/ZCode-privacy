@@ -1,3 +1,4 @@
+import "@zcode/shared/privacy/network-node";
 import { extractDisallowedToolsArgs, parseGlobalArgs } from "./arguments.js";
 import { createNodeLoggerFactory } from "@zcode/adapters";
 import { getRuntimeInfo, type PresentationSurface } from "@zcode/core";

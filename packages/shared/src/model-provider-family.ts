@@ -32,7 +32,7 @@ export const MODEL_PROVIDER_FAMILY_SPECS = [
     startPlanProviderId: BUILTIN_MODEL_PROVIDER_IDS.zaiStartPlan,
     individualCodingPlanProviderId: BUILTIN_MODEL_PROVIDER_IDS.zaiIndividualCodingPlan,
     teamCodingPlanProviderId: BUILTIN_MODEL_PROVIDER_IDS.zaiTeamCodingPlan,
-    teamCodingPlanManageUrl: "https://z.ai/manage-apikey/subscription",
+    teamCodingPlanManageUrl: "https://127.0.0.1/manage-apikey/subscription",
   },
   {
     id: "bigmodel",

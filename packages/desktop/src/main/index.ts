@@ -1,3 +1,4 @@
+import "./privacyNetworkBootstrap.js";
 import { installRequestSecurityDiagnostics } from "./request-security-edition/index.js";
 import { createLocalTtftExporter } from "./localTtftExporter.js";
 /* eslint-disable max-lines */

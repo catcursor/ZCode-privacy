@@ -6,7 +6,7 @@ import {
 } from "../src/main/remoteCdn.js";
 
 describe("remoteCdn", () => {
-  it("中文且东八区时应优先国内 CDN", () => {
+  it("中文且东八区的默认 CDN 映射回环并去重", () => {
     expect(
       shouldPreferDomesticRemoteCdn({
         locale: "zh-CN",
@@ -20,13 +20,10 @@ describe("remoteCdn", () => {
         timeZone: "Asia/Shanghai",
         version: "0.0.0-test",
       }),
-    ).toEqual([
-      "https://cdn.codegeex.cn/zcode/electron/releases/0.0.0-test",
-      "https://cdn-zcode.z.ai/zcode/electron/releases/0.0.0-test",
-    ]);
+    ).toEqual(["https://127.0.0.1/zcode/electron/releases/0.0.0-test"]);
   });
 
-  it("非中文或非东八区时应优先海外 CDN", () => {
+  it("非中文或非东八区的默认 CDN 也只使用回环", () => {
     expect(
       shouldPreferDomesticRemoteCdn({
         locale: "en-US",
@@ -46,10 +43,7 @@ describe("remoteCdn", () => {
         timeZone: "America/Los_Angeles",
         version: "0.0.0-test",
       }),
-    ).toEqual([
-      "https://cdn-zcode.z.ai/zcode/electron/releases/0.0.0-test",
-      "https://cdn.codegeex.cn/zcode/electron/releases/0.0.0-test",
-    ]);
+    ).toEqual(["https://127.0.0.1/zcode/electron/releases/0.0.0-test"]);
   });
 
   it("东八区判断应按 UTC 偏移而不是固定城市名单", () => {
@@ -66,9 +60,7 @@ describe("remoteCdn", () => {
         timeZone: "Asia/Shanghai",
         version: "0.0.0-test",
       }),
-    ).toEqual([
-      "http://intranet.example.invalid:12345/ssh-remote-assets/0.0.0-test",
-    ]);
+    ).toEqual(["http://intranet.example.invalid:12345/ssh-remote-assets/0.0.0-test"]);
   });
 
   it("显式覆盖 CDN 基址时不再按产品环境选择默认值", () => {
@@ -79,5 +71,11 @@ describe("remoteCdn", () => {
         version: "0.0.0-test",
       }),
     ).toEqual(["https://cdn.example.com/releases"]);
+  });
+
+  it("旧 CDN 覆盖也必须映射为 127.0.0.1", () => {
+    expect(
+      resolveRemoteCdnBaseUrls({ overrideBaseUrl: "https://cdn-zcode.z.ai/releases///" }),
+    ).toEqual(["https://127.0.0.1/releases"]);
   });
 });

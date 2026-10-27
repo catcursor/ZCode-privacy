@@ -279,7 +279,7 @@ const enUS: Record<string, string> = {
   "manualClaimPlan.claim.share.copyImageSucceeded": "Image copied",
   "manualClaimPlan.claim.share.actionFailed": "Share action failed. Please try again.",
   "manualClaimPlan.claim.share.twitterText":
-    "I claimed {subtitle} on ZCode. Download and install ZCode to claim yours. https://zcode.z.ai",
+    "I claimed {subtitle} on ZCode. Download and install ZCode to claim yours. https://127.0.0.1",
   "manualClaimPlan.claim.share.twitterTextLabel": "Twitter/X post text",
   // Common
   "common.loading": "Loading...",
@@ -1076,7 +1076,8 @@ const enUS: Record<string, string> = {
   "browser.permission.deviceBluetooth": "Bluetooth devices",
   "browser.permission.unknownCapability": "an unknown capability",
   "browser.permission.screenShareTitle": "{origin} wants to share your screen",
-  "browser.permission.screenShareDescription": "Choose the screen or window to share. This choice applies only to this session.",
+  "browser.permission.screenShareDescription":
+    "Choose the screen or window to share. This choice applies only to this session.",
   "browser.permission.deviceTitle": "{origin} wants to connect a device",
   "browser.permission.connect": "Connect",
   "browser.permission.screenGroup.screen": "Entire Screen",
@@ -7386,7 +7387,7 @@ const enUS: Record<string, string> = {
   "globalNotice.highspeed.speedSummary": "HighSpeed · {duration}",
   "globalNotice.highspeed.lessWaiting": "{percent}% less waiting",
   "globalNotice.highspeed.copySummary":
-    "I used the ZCode Highspeed card and saved {duration}s. Give it a try. Download ZCode https://zcode.z.ai",
+    "I used the ZCode Highspeed card and saved {duration}s. Give it a try. Download ZCode https://127.0.0.1",
   "globalNotice.highspeed.imageSummary": "{tokens} tokens · {duration}s saved",
   "globalNotice.highspeed.close": "Close Highspeed share card",
   ...requestSecurityMessagesEnUS,

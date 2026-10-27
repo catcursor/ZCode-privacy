@@ -79,7 +79,8 @@ describe("NodeHttpClientAdapter", () => {
       const upstreamRequest = http.request(
         {
           headers: clientRequest.headers,
-          hostname: target.hostname,
+          // 公网测试域只在代理端映射到本机，确保这里验证的确实是非回环请求的代理路径。
+          hostname: "127.0.0.1",
           method: clientRequest.method,
           path: `${target.pathname}${target.search}`,
           port: target.port,
@@ -97,7 +98,7 @@ describe("NodeHttpClientAdapter", () => {
     });
 
     try {
-      const upstreamBaseUrl = await listenServer(upstream);
+      const upstreamBaseUrl = (await listenServer(upstream)).replace("127.0.0.1", "model.example");
       const proxyBaseUrl = await listenServer(proxy);
       const adapter = createNodeHttpClientAdapter({
         env: {

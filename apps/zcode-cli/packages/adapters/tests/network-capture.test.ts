@@ -16,14 +16,17 @@ async function close(server: Server) {
   await new Promise<void>((resolve) => server.close(() => resolve()));
 }
 
-it("CLI 原有 proxy/noProxy 路由与响应不变，目标只记一条，MCP 直连和代理均排除", async () => {
+it("公网目标经代理、回环目标直连，目标只记一条，MCP 直连和代理均排除", async () => {
   const upstream = createServer((_req, res) => res.end("unchanged"));
   const target = await listen(upstream);
+  const publicTarget = target.replace("127.0.0.1", "model.example");
   let forwarded = 0;
   const proxy = createServer((req, res) =>
     withoutNetworkCapture(() => {
       forwarded++;
-      const outgoing = request(req.url!, { method: req.method }, (response) => response.pipe(res));
+      const destination = new URL(req.url!);
+      destination.hostname = "127.0.0.1";
+      const outgoing = request(destination, { method: req.method }, (response) => response.pipe(res));
       outgoing.on("error", () => res.destroy());
       req.pipe(outgoing);
     }),
@@ -35,20 +38,20 @@ it("CLI 原有 proxy/noProxy 路由与响应不变，目标只记一条，MCP �
   capture.setCaptureId("cli-proxy");
   try {
     const proxyFetch = createNetworkProxyFetch({ env: {}, httpProxy });
-    expect(await (await proxyFetch(`${target}/proxy?key=secret`)).text()).toBe("unchanged");
+    expect(await (await proxyFetch(`${publicTarget}/proxy?key=secret`)).text()).toBe("unchanged");
     expect(forwarded).toBe(1);
     const bypass = createNetworkProxyFetch({ env: {}, httpProxy, noProxy: "127.0.0.1" });
     expect(await (await bypass(`${target}/bypass`)).text()).toBe("unchanged");
     expect(forwarded).toBe(1);
     await (await createMcpTransportFetch({ env: {} })(`${target}/mcp-direct`)).text();
     await (
-      await createMcpTransportFetch({ env: {}, network: { httpProxy } })(`${target}/mcp-proxy`)
+      await createMcpTransportFetch({ env: {}, network: { httpProxy } })(`${publicTarget}/mcp-proxy`)
     ).text();
     expect(forwarded).toBe(2);
     await vi.waitFor(() => expect(batches.flatMap((batch) => batch.records)).toHaveLength(2));
     const records = batches.flatMap((batch) => batch.records);
     expect(records.map((record) => record.url)).toEqual([
-      `${target}/proxy?key=%5Bredacted%5D`,
+      `${publicTarget}/proxy?key=%5Bredacted%5D`,
       `${target}/bypass`,
     ]);
     expect(globalThis.fetch).toBe(original);

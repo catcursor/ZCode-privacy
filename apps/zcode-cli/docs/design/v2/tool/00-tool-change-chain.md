@@ -1,5 +1,13 @@
 # Tool Change Chain Spec
 
+## 隐私版智谱域名回环（2026-10-27）
+
+应用内模型、HTTP/WebFetch、MCP 和浏览器的网络出口对智谱/Z.ai 域名执行统一
+127.0.0.1 映射，包含旧配置与重定向。共享策略拥有域名判定，Node/Chromium adapter
+在代理/传输前执行。工具 schema、权限、trace、取消、结果预算，以及 Desktop continuous
+和手机 replayable 交付保持现有合同；不增加 OS 级终端/外部程序网络沙箱。
+不再将模型请求改道到官方网关。域名范围与回归场景见根 privacy-hardening spec。
+
 ## 工具内部模型请求的会话归因（2026-09-30）
 
 WebSearch、WebFetch processing、ReadSessionContext 的内部模型请求继承发起工具的宿主
